@@ -41,7 +41,7 @@ class GPTConfig:
     bptt_k: int = 4  # truncate backprop to last k recurrences (None = full backprop)
     kv_cache_recur_budget: int = 1  # KV cache slots per position for recurrence (1 = only store final)
     inject_mode: str = "concat_linear"  # input injection mode: "concat_linear" (learned adapter)
-
+    recur_init_sigma: float = 1.0  # sigma for s0 ~ N(0, sigma^2 I)
 
 def norm(x):
     # Purely functional rmsnorm with no learnable params
@@ -140,8 +140,8 @@ class Block(nn.Module):
         self.mlp = MLP(config)
 
     def forward(self, x, cos_sin, kv_cache):
-        x = x + self.attn(norm(x), cos_sin, kv_cache)
-        x = x + self.mlp(norm(x))
+        x = x + norm(self.attn(norm(x), cos_sin, kv_cache))
+        x = x + norm(self.mlp(norm(x)))
         return x
 
 
@@ -347,7 +347,9 @@ class GPT(nn.Module):
             else:
                 s = warm_start_state
         else:
-            s = e
+            #s = e
+            sigma = self.config.recur_init_sigma
+            s = torch.randn_like(e) * sigma
 
         # 4. Recurrent block (run num_recur times)
         # All recurrences read/write to KV cache. Since cache position only advances after

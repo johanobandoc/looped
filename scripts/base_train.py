@@ -33,7 +33,7 @@ print_banner()
 
 # -----------------------------------------------------------------------------
 # User settings
-run = "dummy" # wandb run name default ("dummy" is special - we won't log to wandb)
+run = "looped" # wandb run name default ("dummy" is special - we won't log to wandb)
 # Runtime
 device_type = "" # cuda|cpu|mps (empty => autodetect good device type default, in order: CUDA > MPS > CPU)
 # Model architecture
@@ -161,15 +161,15 @@ print0(f"Estimated FLOPs per token: {num_flops_per_token:e}")
 assert num_iterations > 0 or target_param_data_ratio > 0 or target_flops > 0
 if num_iterations > 0:
     print0(f"Using user-provided number of iterations: {num_iterations:,}")
-elif target_flops > 0:
-    # calculate the number of iterations from the target flops
-    num_iterations = round(target_flops / (num_flops_per_token * total_batch_size))
-    print0(f"Calculated number of iterations from target FLOPs: {num_iterations:,}")
-elif target_param_data_ratio > 0:
-    # calculate the number of iterations from the target param data ratio
-    target_tokens = target_param_data_ratio * num_params
-    num_iterations = target_tokens // total_batch_size
-    print0(f"Calculated number of iterations from target data:param ratio: {num_iterations:,}")
+# elif target_flops > 0:
+#     # calculate the number of iterations from the target flops
+#     num_iterations = round(target_flops / (num_flops_per_token * total_batch_size))
+#     print0(f"Calculated number of iterations from target FLOPs: {num_iterations:,}")
+# elif target_param_data_ratio > 0:
+#     # calculate the number of iterations from the target param data ratio
+#     target_tokens = target_param_data_ratio * num_params
+#     num_iterations = target_tokens // total_batch_size
+#     print0(f"Calculated number of iterations from target data:param ratio: {num_iterations:,}")
 else:
     raise ValueError("No training horizon specified")
 total_tokens = total_batch_size * num_iterations

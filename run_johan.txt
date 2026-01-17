@@ -1,0 +1,53 @@
+module load cudatoolkit/11.6
+source .venv/bin/activate
+uv sync --extra gpu
+python -c "import torch; print('CUDA:', torch.cuda.is_available())"
+export HF_HOME=/network/scratch/j/johan.ceron/hf
+export HF_DATASETS_CACHE=/network/scratch/j/johan.ceron/hf_datasets
+export TRANSFORMERS_CACHE=/network/scratch/j/johan.ceron/hf_transformers
+export TORCH_HOME=/network/scratch/j/johan.ceron/torch
+export WANDB_DIR=/network/scratch/j/johan.ceron/wandb
+mkdir -p \
+  /network/scratch/j/johan.ceron/hf \
+  /network/scratch/j/johan.ceron/hf_datasets \
+  /network/scratch/j/johan.ceron/hf_transformers \
+  /network/scratch/j/johan.ceron/torch \
+  /network/scratch/j/johan.ceron/wandb
+bash speedrun.sh
+
+
+
+Vocab size: 65,536
+num_layers: 16
+model_dim: 1024
+num_heads: 8
+num_kv_heads: 8
+Recursive config: prelude=2, recur=4, coda=2, train_recur_mean=4.0, train_recur_max=16, bptt_k=4
+Tokens / micro-batch / rank: 32 x 2048 = 65,536
+Tokens / micro-batch: 65,536
+Total batch size 524,288 => gradient accumulation steps: 8
+Number of parameters: 236,978,176
+Estimated FLOPs per token: 2.466251e+09
+Calculated number of iterations from target data:param ratio: 9,040
+Total number of training tokens: 4,739,563,520
+Tokens : Params ratio: 20.00
+Total training FLOPs estimate: 1.168895e+19
+
+and for the feedforward model:
+
+Vocab size: 65,536
+num_layers: 16
+model_dim: 1024
+num_heads: 8
+num_kv_heads: 8
+Recursive config: prelude=16, recur=0, coda=0, train_recur_mean=4.0, train_recur_max=16, bptt_k=4
+Tokens / micro-batch / rank: 32 x 2048 = 65,536
+Tokens / micro-batch: 65,536
+Total batch size 524,288 => gradient accumulation steps: 8
+Number of parameters: 337,641,472
+Estimated FLOPs per token: 2.025849e+09
+Calculated number of iterations from target data:param ratio: 12,880
+Total number of training tokens: 6,752,829,440
+Tokens : Params ratio: 20.00
+Total training FLOPs estimate: 1.368021e+19
+
