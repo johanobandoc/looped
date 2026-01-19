@@ -92,8 +92,8 @@ wait $DATASET_DOWNLOAD_PID
 NPROC_PER_NODE=1
 
 # pretrain the d20 model
-#torchrun --standalone --nproc_per_node=$NPROC_PER_NODE -m scripts.base_train -- --depth=20 --run=$WANDB_RUN
-torchrun --standalone --nproc_per_node=$NPROC_PER_NODE -m scripts.base_train -- --num_iterations=1000 --depth=16 --run=$WANDB_RUN
+#torchrun --standalone --nproc_per_node=$NPROC_PER_NODE -m scripts.base_train -- --depth=12 --run=$WANDB_RUN
+torchrun --standalone --nproc_per_node=$NPROC_PER_NODE -m scripts.base_train -- --num_iterations=7125 --depth=12 --model_tag="R12SIN" --run=$WANDB_RUN
 
 # evaluate the model on a larger chunk of train/val data and draw some samples
 torchrun --standalone --nproc_per_node=$NPROC_PER_NODE -m scripts.base_loss
@@ -123,6 +123,7 @@ torchrun --standalone --nproc_per_node=$NPROC_PER_NODE -m scripts.chat_eval -- -
 
 # train sft and re-eval right away (should see a small bump)
 torchrun --standalone --nproc_per_node=$NPROC_PER_NODE -m scripts.chat_sft -- --run=$WANDB_RUN
+#torchrun --standalone --nproc_per_node=$NPROC_PER_NODE -m scripts.base_train -- --num_iterations=1000 --n_recur_block=12 --run=$WANDB_RUN --model_tag="R12SIN"
 torchrun --standalone --nproc_per_node=$NPROC_PER_NODE -m scripts.chat_eval -- -i sft
 
 # chat with the model over CLI! Leave out the -p to chat interactively

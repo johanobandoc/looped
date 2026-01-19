@@ -37,7 +37,7 @@ run = "looped" # wandb run name default ("dummy" is special - we won't log to wa
 # Runtime
 device_type = "" # cuda|cpu|mps (empty => autodetect good device type default, in order: CUDA > MPS > CPU)
 # Model architecture
-depth = 20 # the depth of the Transformer model to train, rest of the kwargs are derived
+depth = 12 #20 # the depth of the Transformer model to train, rest of the kwargs are derived
 max_seq_len = 2048 # max context length
 # Recursive transformer config
 n_prelude = 2 # number of prelude layers
@@ -47,7 +47,7 @@ train_recur_mean = 4.0 # mean recurrences during training (also default r at inf
 train_recur_max = 16 # max recurrences sampled during training
 bptt_k = 4 # truncate backprop to last k recurrences (limits gradient depth)
 # Training horizon. Only one of these 3 will be used, in this order of precedence.
-num_iterations = -1 # explicit number of steps of the optimization (-1 = disable)
+num_iterations = 7125 #-1 # explicit number of steps of the optimization (-1 = disable)
 target_flops = -1.0 # calculate num_iterations to reach target_flops. Useful for scaling laws experiments (-1 = disable)
 target_param_data_ratio = 20 # calculate num_iterations to maintain fixed data:param ratio (Chinchilla=20) (-1 = disable)
 # Optimization
@@ -97,7 +97,8 @@ print0(f"Vocab size: {vocab_size:,}")
 
 # Model kwargs are derived from the desired depth of the model
 num_layers = depth
-model_dim = depth * 64 # aspect ratio 64 (usually this is varied from 64 -> 128 as model size increases)
+#model_dim = depth * 64 # aspect ratio 64 (usually this is varied from 64 -> 128 as model size increases)
+model_dim = 768
 num_heads = max(1, (model_dim + 127) // 128) # head dim 128 (the division here is ceil div)
 num_kv_heads = num_heads # default is 1:1 GQA (Group Query Attention) ratio (i.e. GQA is disabled)
 print0(f"num_layers: {num_layers}")
