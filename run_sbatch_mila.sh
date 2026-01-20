@@ -2,99 +2,124 @@
 #SBATCH --time=10:00:00
 #SBATCH --mem=120G
 #SBATCH --gres=gpu:a100l:1     ###SBATCH --gres=gpu:rtx8000:1 --gres=gpu:a100l:1
+#SBATCH --partition=lab-bengioy
 #SBATCH --cpus-per-task=16
 #SBATCH --mail-type=ALL
 
-# Load required modules
-cd /scratch/j/johan.ceron/icml2026/nanochat
+set -euo pipefail
 
+# -----------------------------------------------------------------------------
+# Paths
+# -----------------------------------------------------------------------------
+cd /home/mila/j/johan.ceron/scratch/icml2026/nanochat
+
+# -----------------------------------------------------------------------------
+# Modules / env
+# -----------------------------------------------------------------------------
 module load cudatoolkit/11.6
-source .venv/bin/activate
-uv sync --extra gpu
-python -c "import torch; print('CUDA:', torch.cuda.is_available())"
+
 export HF_HOME=/network/scratch/j/johan.ceron/hf
 export HF_DATASETS_CACHE=/network/scratch/j/johan.ceron/hf_datasets
 export TRANSFORMERS_CACHE=/network/scratch/j/johan.ceron/hf_transformers
 export TORCH_HOME=/network/scratch/j/johan.ceron/torch
 export WANDB_DIR=/network/scratch/j/johan.ceron/wandb
-mkdir -p \
-  /network/scratch/j/johan.ceron/hf \
-  /network/scratch/j/johan.ceron/hf_datasets \
-  /network/scratch/j/johan.ceron/hf_transformers \
-  /network/scratch/j/johan.ceron/torch \
-  /network/scratch/j/johan.ceron/wandb
-
-#bash speedrun.sh
-
 export OMP_NUM_THREADS=1
-#export NANOCHAT_BASE_DIR="$HOME/.cache/nanochat"
 export NANOCHAT_BASE_DIR=/network/scratch/j/johan.ceron/nanochat_cache
+# -----------------------------------------------------------------------------
+# uv cache (evita disk quota en $HOME)
+# -----------------------------------------------------------------------------
+export UV_CACHE_DIR=/network/scratch/j/johan.ceron/uv_cache
+export UV_LINK_MODE=copy
+mkdir -p "$UV_CACHE_DIR"
 
-mkdir -p $NANOCHAT_BASE_DIR
+
+mkdir -p \
+  "$HF_HOME" \
+  "$HF_DATASETS_CACHE" \
+  "$TRANSFORMERS_CACHE" \
+  "$TORCH_HOME" \
+  "$WANDB_DIR" \
+  "$NANOCHAT_BASE_DIR"
 
 # -----------------------------------------------------------------------------
-# Python venv setup with uv
-
-# install uv (if not already installed)
+# uv + venv
+# -----------------------------------------------------------------------------
 command -v uv &> /dev/null || curl -LsSf https://astral.sh/uv/install.sh | sh
-# create a .venv local virtual environment (if it doesn't exist)
 [ -d ".venv" ] || uv venv
-# install the repo dependencies
 uv sync --extra gpu
-# activate venv so that `python` uses the project's venv instead of system python
 source .venv/bin/activate
 
-python -c "import torch; print(torch.__version__, torch.cuda.is_available())"
-#python -m nanochat.report reset
+python -c "import torch; print('torch', torch.__version__, '| CUDA:', torch.cuda.is_available())"
 
-if [ -z "$WANDB_RUN" ]; then
-    # by default use "dummy" : it's handled as a special case, skips logging to wandb
-    WANDB_RUN=dummy
-fi
+# -----------------------------------------------------------------------------
+# Weights & Biases
+# -----------------------------------------------------------------------------
+export WANDB_PROJECT="nanochat_speedrun_sigreg"
+export WANDB_ENTITY="johan-ceron-obando"   # opcional
+: "${WANDB_RUN:=R12SIN_depth12_iter7125}"  # si no está seteado, usa este
 
 python -m nanochat.report reset
 
 # -----------------------------------------------------------------------------
 # Tokenizer
+# -----------------------------------------------------------------------------
+# Install Rust / Cargo en scratch (evita disk quota en $HOME)
+export CARGO_HOME=/network/scratch/j/johan.ceron/cargo
+export RUSTUP_HOME=/network/scratch/j/johan.ceron/rustup
+mkdir -p "$CARGO_HOME" "$RUSTUP_HOME"
+export PATH="$CARGO_HOME/bin:$PATH"
 
-# Install Rust / Cargo
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-source "$HOME/.cargo/env"
+source "$CARGO_HOME/env"
 
 # Build the rustbpe Tokenizer
 uv run maturin develop --release --manifest-path rustbpe/Cargo.toml
+
+# Download dataset in parallel + build tokenizer
 python -m nanochat.dataset -n 8
 python -m nanochat.dataset -n 240 &
 DATASET_DOWNLOAD_PID=$!
-# train the tokenizer with vocab size 2**16 = 65536 on ~2B characters of data
+
 python -m scripts.tok_train --max_chars=2000000000
-# evaluate the tokenizer (report compression ratio etc.)
 python -m scripts.tok_eval
 
 echo "Waiting for dataset download to complete..."
 wait $DATASET_DOWNLOAD_PID
 
-# Number of processes/GPUs to use
+# -----------------------------------------------------------------------------
+# Train + eval
+# -----------------------------------------------------------------------------
 NPROC_PER_NODE=1
-torchrun --standalone --nproc_per_node=$NPROC_PER_NODE -m scripts.base_train -- --depth=16 --run=$WANDB_RUN
 
-# evaluate the model on a larger chunk of train/val data and draw some samples
+torchrun --standalone --nproc_per_node=$NPROC_PER_NODE -m scripts.base_train -- \
+  --num_iterations=7125 \
+  --depth=12 \
+  --n_recur_blocks=12 \
+  --model_tag="R12SIN-2" \
+  --run=$WANDB_RUN
+
 torchrun --standalone --nproc_per_node=$NPROC_PER_NODE -m scripts.base_loss
-# evaluate the model on CORE tasks
 torchrun --standalone --nproc_per_node=$NPROC_PER_NODE -m scripts.base_eval
 
+# -----------------------------------------------------------------------------
+# Identity conversations
+# -----------------------------------------------------------------------------
 IDENTITY_FILE="$NANOCHAT_BASE_DIR/identity_conversations.jsonl"
 if [ -f "$IDENTITY_FILE" ]; then
     echo "identity_conversations.jsonl already exists, skipping download..."
 elif ! curl -fL -o "$IDENTITY_FILE" https://raw.githubusercontent.com/TrelisResearch/nanochat/master/identity_conversations.jsonl; then
-    echo "Download failed, generating identity_conversations.jsonl locally... Make sure you have added an OpenRouter api key to openroutertoken.txt"
+    echo "Download failed, generating identity_conversations.jsonl locally..."
+    echo "Make sure you have added an OpenRouter api key to openroutertoken.txt"
     PYTHONPATH=$(pwd) python dev/gen_synthetic_data.py
 fi
 
-# run midtraining and eval the model
+# -----------------------------------------------------------------------------
+# Midtraining + SFT + report
+# -----------------------------------------------------------------------------
 torchrun --standalone --nproc_per_node=$NPROC_PER_NODE -m scripts.mid_train -- --run=$WANDB_RUN
 torchrun --standalone --nproc_per_node=$NPROC_PER_NODE -m scripts.chat_eval -- -i mid
 
 torchrun --standalone --nproc_per_node=$NPROC_PER_NODE -m scripts.chat_sft -- --run=$WANDB_RUN
 torchrun --standalone --nproc_per_node=$NPROC_PER_NODE -m scripts.chat_eval -- -i sft
+
 python -m nanochat.report generate

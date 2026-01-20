@@ -140,8 +140,12 @@ class Block(nn.Module):
         self.mlp = MLP(config)
 
     def forward(self, x, cos_sin, kv_cache):
-        x = x + norm(self.attn(norm(x), cos_sin, kv_cache))
-        x = x + norm(self.mlp(norm(x)))
+        # ouro normed version:
+        #x = x + norm(self.attn(norm(x), cos_sin, kv_cache))
+        #x = x + norm(self.mlp(norm(x)))
+
+        x = x + self.attn(norm(x), cos_sin, kv_cache)
+        x = x + self.mlp(norm(x))
         return x
 
 
