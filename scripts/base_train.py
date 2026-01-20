@@ -37,7 +37,7 @@ run = "looped" # wandb run name default ("dummy" is special - we won't log to wa
 # Runtime
 device_type = "" # cuda|cpu|mps (empty => autodetect good device type default, in order: CUDA > MPS > CPU)
 # Model architecture
-depth = 12 #20 # the depth of the Transformer model to train, rest of the kwargs are derived
+#depth = 12 #20 # the depth of the Transformer model to train, rest of the kwargs are derived
 max_seq_len = 2048 # max context length
 # Recursive transformer config
 n_prelude = 2 # number of prelude layers
@@ -96,12 +96,12 @@ vocab_size = tokenizer.get_vocab_size()
 print0(f"Vocab size: {vocab_size:,}")
 
 # Model kwargs are derived from the desired depth of the model
-num_layers = depth
+#num_layers = depth
 #model_dim = depth * 64 # aspect ratio 64 (usually this is varied from 64 -> 128 as model size increases)
 model_dim = 768
 num_heads = max(1, (model_dim + 127) // 128) # head dim 128 (the division here is ceil div)
 num_kv_heads = num_heads # default is 1:1 GQA (Group Query Attention) ratio (i.e. GQA is disabled)
-print0(f"num_layers: {num_layers}")
+#print0(f"num_layers: {num_layers}")
 print0(f"model_dim: {model_dim}")
 print0(f"num_heads: {num_heads}")
 print0(f"num_kv_heads: {num_kv_heads}")
@@ -121,8 +121,9 @@ print0(f"Total batch size {total_batch_size:,} => gradient accumulation steps: {
 # Initialize the Model
 
 # Create a new model with random weights
+#n_layer=num_layers
 model_config_kwargs = dict(
-    sequence_len=max_seq_len, vocab_size=vocab_size, n_layer=num_layers,
+    sequence_len=max_seq_len, vocab_size=vocab_size,
     n_head=num_heads, n_kv_head=num_kv_heads, n_embd=model_dim,
     # Recursive transformer config
     n_prelude=n_prelude, n_recur_block=n_recur_block, n_coda=n_coda,

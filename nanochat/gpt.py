@@ -23,11 +23,12 @@ from nanochat.common import get_dist_info, print0
 from nanochat.muon import Muon, DistMuon
 from nanochat.adamw import DistAdamW
 
+
 @dataclass
 class GPTConfig:
     sequence_len: int = 1024
     vocab_size: int = 50304
-    n_layer: int = 12
+    #n_layer: int = 12
     n_head: int = 6 # number of query heads
     n_kv_head: int = 6 # number of key/value heads (GQA)
     n_embd: int = 768
@@ -154,8 +155,8 @@ class GPT(nn.Module):
         super().__init__()
         self.config = config
         # Validate recursive config: prelude + recur + coda <= n_layer
-        assert config.n_prelude + config.n_recur_block + config.n_coda <= config.n_layer, \
-            f"n_prelude({config.n_prelude}) + n_recur_block({config.n_recur_block}) + n_coda({config.n_coda}) must be <= n_layer({config.n_layer})"
+        # assert config.n_prelude + config.n_recur_block + config.n_coda <= config.n_layer, \
+        #     f"n_prelude({config.n_prelude}) + n_recur_block({config.n_recur_block}) + n_coda({config.n_coda}) must be <= n_layer({config.n_layer})"
 
         # Recursive transformer structure: prelude -> recur (repeated r times) -> coda
         # Layer indices: prelude [0, n_prelude), recur [n_prelude, n_prelude+n_recur_block), coda uses indices after recur
