@@ -262,12 +262,24 @@ class GPT(nn.Module):
             flops_from_attention = 12 * effective_layers * h * q * t
 
             return flops_from_params + flops_from_attention
+        # else:
+        #     # Standard model: original formula
+        #     nparams = sum(p.numel() for p in self.parameters())
+        #     nparams_embedding = self.transformer.wte.weight.numel()
+        #     num_flops_per_token = 6 * (nparams - nparams_embedding) + 12 * self.config.n_layer * h * q * t
+        #     return num_flops_per_token
         else:
             # Standard model: original formula
+            # We assume that if we're here, we're running in feedforward mode by putting
+            # everything in the prelude layers. Let's check that assumption
+            assert self.config.n_prelude > 0, "n_prelude must be greater than 0"
+            assert self.config.n_coda == 0, "n_coda must be 0"
+            assert self.config.n_recur_block == 0, "n_recur_block must be 0"
             nparams = sum(p.numel() for p in self.parameters())
             nparams_embedding = self.transformer.wte.weight.numel()
-            num_flops_per_token = 6 * (nparams - nparams_embedding) + 12 * self.config.n_layer * h * q * t
+            num_flops_per_token = 6 * (nparams - nparams_embedding) + 12 * self.config.n_prelude * h * q * t
             return num_flops_per_token
+        
 
     def setup_optimizers(self, unembedding_lr=0.004, embedding_lr=0.2, matrix_lr=0.02, weight_decay=0.0):
         model_dim = self.config.n_embd
@@ -345,12 +357,25 @@ class GPT(nn.Module):
 
         # 3. Initialize recurrent state
         # If warm_start_state provided and config allows, use it; otherwise start from e
+        # if warm_start_state is not None and self.config.recur_warm_start:
+        #     # warm_start_state may be (B, 1, h) from last token - broadcast to match e's shape (B, T, h)
+        #     if warm_start_state.size(1) != T:
+        #         s = warm_start_state.expand(-1, T, -1)
+        #     else:
+        #         s = warm_start_state
+        # else:
+        #     #s = e
+        #     sigma = self.config.recur_init_sigma
+        #     s = torch.randn_like(e) * sigma
+
         if warm_start_state is not None and self.config.recur_warm_start:
             # warm_start_state may be (B, 1, h) from last token - broadcast to match e's shape (B, T, h)
             if warm_start_state.size(1) != T:
                 s = warm_start_state.expand(-1, T, -1)
             else:
                 s = warm_start_state
+        elif self.config.n_recur_block == 0:
+            s = e
         else:
             #s = e
             sigma = self.config.recur_init_sigma

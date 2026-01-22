@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --time=10:00:00
+#SBATCH --time=36:00:00
 #SBATCH --mem=120G
 #SBATCH --gres=gpu:a100l:1     ###SBATCH --gres=gpu:rtx8000:1 --gres=gpu:a100l:1
 #SBATCH --partition=lab-bengioy
@@ -55,8 +55,10 @@ python -c "import torch; print('torch', torch.__version__, '| CUDA:', torch.cuda
 # Weights & Biases
 # -----------------------------------------------------------------------------
 export WANDB_PROJECT="nanochat_speedrun_sigreg"
+# export WANDB_ENTITY="johan-ceron-obando"   # opcional
+# : "${WANDB_RUN:=R4SI_v2_dim_512_iter7125}"  # si no está seteado, usa este
 export WANDB_ENTITY="johan-ceron-obando"   # opcional
-: "${WANDB_RUN:=R12SIN_depth12_iter7125}"  # si no está seteado, usa este
+: "${WANDB_RUN:=control}"
 
 python -m nanochat.report reset
 
@@ -91,11 +93,19 @@ wait $DATASET_DOWNLOAD_PID
 # -----------------------------------------------------------------------------
 NPROC_PER_NODE=1
 
+# torchrun --standalone --nproc_per_node=$NPROC_PER_NODE -m scripts.base_train -- \
+#   --num_iterations=7125 \
+#   --n_recur_block=4 \
+#   --device_batch_size=32 \
+#   --model_tag="R4SIv2dim512" \
+#   --run=$WANDB_RUN
+
 torchrun --standalone --nproc_per_node=$NPROC_PER_NODE -m scripts.base_train -- \
   --num_iterations=7125 \
-  --depth=12 \
-  --n_recur_blocks=12 \
-  --model_tag="R12SIN-2" \
+  --n_prelude=12 \
+  --n_coda=0 \
+  --n_recur_block=0 \
+  --model_tag="control" \
   --run=$WANDB_RUN
 
 torchrun --standalone --nproc_per_node=$NPROC_PER_NODE -m scripts.base_loss
