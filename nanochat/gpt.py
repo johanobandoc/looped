@@ -167,7 +167,12 @@ class GPT(nn.Module):
             "coda": nn.ModuleList([Block(config, config.n_prelude + config.n_recur_block + layer_idx) for layer_idx in range(config.n_coda)]),
         })
         # Input injection adapter: concat(e, s) -> linear -> u
-        self.inject = nn.Linear(2 * config.n_embd, config.n_embd, bias=False)
+        if self.config.inject_mode == "concat_linear":
+            self.inject = nn.Linear(2 * config.n_embd, config.n_embd, bias=False)
+        elif self.config.inject_mode == "none":
+            self.inject = nn.Identity()
+        else:
+            raise ValueError(f"Invalid inject mode: {config.inject_mode}")
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
         # To support meta device initialization, we init the rotary embeddings here, but it's fake
         # As for rotary_seq_len, these rotary embeddings are pretty small/cheap in memory,
@@ -192,9 +197,10 @@ class GPT(nn.Module):
         # This ensures gradients flow on the first forward pass
         # Weight shape is (n_embd, 2*n_embd), we want [I | 0] so inject(concat(e,s)) ≈ e
         n_embd = self.config.n_embd
-        with torch.no_grad():
-            self.inject.weight.zero_()
-            self.inject.weight[:, :n_embd].copy_(torch.eye(n_embd))
+        if self.config.inject_mode != "none":
+            with torch.no_grad():
+                self.inject.weight.zero_()
+                self.inject.weight[:, :n_embd].copy_(torch.eye(n_embd))
         # init the rotary embeddings
         head_dim = self.config.n_embd // self.config.n_head
         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
@@ -251,7 +257,7 @@ class GPT(nn.Module):
             once_params = prelude_params + coda_params + lm_head_params
 
             # Params used r times per forward (inside recurrence loop)
-            inject_params = self.inject.weight.numel()
+            inject_params = self.inject.weight.numel() if self.config.inject_mode != "none" else 0
             recur_params = sum(p.numel() for p in self.transformer.recur.parameters())
             r_times_params = inject_params + recur_params
 
@@ -374,7 +380,7 @@ class GPT(nn.Module):
                 s = warm_start_state.expand(-1, T, -1)
             else:
                 s = warm_start_state
-        elif self.config.n_recur_block == 0:
+        elif (self.config.n_recur_block == 0) or (self.config.inject_mode == "none"):
             s = e
         else:
             #s = e
@@ -387,7 +393,12 @@ class GPT(nn.Module):
         # Only the final recurrence's write persists (paper Section 6.2: ring buffer with budget=1).
         for i in range(num_recur):
             # Input injection: u = inject(concat(e, s))
-            u = self.inject(torch.cat([e, s], dim=-1))
+            if self.config.inject_mode == "concat_linear":
+                u = self.inject(torch.cat([e, s], dim=-1))
+            elif self.config.inject_mode == "none":
+                u = self.inject(s)
+            else:
+                raise ValueError(f"Invalid inject mode: {self.config.inject_mode}")
             # Run recur blocks with KV cache (all recurrences can attend to previous tokens)
             for block in self.transformer.recur:
                 u = block(u, cos_sin, kv_cache)

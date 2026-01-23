@@ -43,6 +43,7 @@ max_seq_len = 2048 # max context length
 n_prelude = 2 # number of prelude layers
 n_recur_block = 4 # number of layers in the recurrent block
 n_coda = 2 # number of coda layers
+inject_mode = "concat_linear" # input injection mode: "concat_linear" (learned adapter)
 train_recur_mean = 4.0 # mean recurrences during training (also default r at inference); r=4 gives 20 effective layers
 train_recur_max = 16 # max recurrences sampled during training
 bptt_k = 4 # truncate backprop to last k recurrences (limits gradient depth)
@@ -128,6 +129,7 @@ model_config_kwargs = dict(
     # Recursive transformer config
     n_prelude=n_prelude, n_recur_block=n_recur_block, n_coda=n_coda,
     train_recur_mean=train_recur_mean, train_recur_max=train_recur_max, bptt_k=bptt_k,
+    inject_mode=inject_mode,
 )
 with torch.device("meta"):
     model_config = GPTConfig(**model_config_kwargs)
