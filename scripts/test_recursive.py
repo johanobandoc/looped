@@ -6,6 +6,7 @@ Usage:
     uv run python -m scripts.test_recursive
 """
 import torch
+
 from nanochat.gpt import GPT, GPTConfig
 
 # Use CUDA (this project's uv.lock targets CUDA torch)
@@ -23,7 +24,6 @@ def test_model_instantiation():
     config = GPTConfig(
         sequence_len=128,
         vocab_size=1000,
-        n_layer=8,  # n_prelude(2) + n_recur_block(4) + n_coda(2) = 8
         n_head=4,
         n_kv_head=4,
         n_embd=256,
