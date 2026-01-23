@@ -44,9 +44,10 @@ n_prelude = 2 # number of prelude layers
 n_recur_block = 4 # number of layers in the recurrent block
 n_coda = 2 # number of coda layers
 inject_mode = "concat_linear" # input injection mode: "concat_linear" (learned adapter)
+recurrence_mode = "constant" # "constant" or "poisson"
 train_recur_mean = 4.0 # mean recurrences during training (also default r at inference); r=4 gives 20 effective layers
 train_recur_max = 16 # max recurrences sampled during training
-bptt_k = 4 # truncate backprop to last k recurrences (limits gradient depth)
+bptt_k = None # truncate backprop to last k recurrences (limits gradient depth)
 # Training horizon. Only one of these 3 will be used, in this order of precedence.
 num_iterations = 7125 #-1 # explicit number of steps of the optimization (-1 = disable)
 target_flops = -1.0 # calculate num_iterations to reach target_flops. Useful for scaling laws experiments (-1 = disable)
@@ -332,11 +333,16 @@ while True:
     for micro_step in range(grad_accum_steps):
         # Sample number of recurrences from Poisson log-normal distribution (per paper Section 3.3)
         # τ ~ N(log(r̄) - ½σ², σ) where σ=0.5, then r ~ Poisson(e^τ) + 1
-        sigma = 0.5
-        r_bar = model_config.train_recur_mean
-        tau = np.random.normal(math.log(r_bar) - 0.5 * sigma**2, sigma)
-        num_recur = np.random.poisson(math.exp(tau)) + 1
-        num_recur = max(1, min(num_recur, model_config.train_recur_max))  # clamp to [1, max]
+        if recurrence_mode == "poisson":
+            sigma = 0.5
+            r_bar = model_config.train_recur_mean
+            tau = np.random.normal(math.log(r_bar) - 0.5 * sigma**2, sigma)
+            num_recur = np.random.poisson(math.exp(tau)) + 1
+            num_recur = max(1, min(num_recur, model_config.train_recur_max))  # clamp to [1, max]
+        elif recurrence_mode == "constant":
+            num_recur = int(train_recur_mean)
+        else:
+            raise ValueError(f"Invalid recurrence mode: {recurrence_mode}")
         with autocast_ctx:
             loss = model(x, y, num_recur=num_recur)
         train_loss = loss.detach() # for logging
