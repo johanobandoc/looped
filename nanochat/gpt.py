@@ -38,7 +38,7 @@ class GPTConfig:
     n_coda: int = 2  # number of coda layers
     train_recur_mean: float = 4.0  # mean recurrences during training (also default r at inference)
     train_recur_max: int = 16  # max recurrences sampled during training
-    recur_warm_start: bool = True  # warm-start recurrence from previous token's final state
+    recur_warm_start: bool = False  # warm-start recurrence from previous token's final state
     bptt_k: int = 4  # truncate backprop to last k recurrences (None = full backprop)
     kv_cache_recur_budget: int = 1  # KV cache slots per position for recurrence (1 = only store final)
     inject_mode: str = "concat_linear"  # input injection mode: "concat_linear" (learned adapter)
